@@ -18,7 +18,7 @@
 | 🔧 工具鏈（function calling） | `search_web`（DuckDuckGo 免金鑰）、`calculator`（安全 AST 計算器）、`list_files` / `read_file` / `write_file`（沙盒檔案，防路徑越界） |
 | 🤖 多 Agent | 可建立多個 agent（各自 system prompt、temperature、工具輪數） |
 | 🗂 多輪工具 loop | LLM 呼叫工具 → 執行 → 結果回灌 → 繼續，直到最終回答 |
-| 📦 資料庫 | **Turso**（libsql 遠端，推薦，資料在雲端）或**本機 SQLite**（libsql），同一套程式碼 |
+| 📦 資料庫 | **Turso**（HTTP API 遠端，推薦，資料在雲端）或**本機 SQLite**（Python 內建 sqlite3），同一套程式碼，無原生套件，x86_64 / ARM64 皆可建置 |
 | 🐳 部署 | Docker 單容器單埠，`/api/health` 已接 HEALTHCHECK |
 
 ## 快速開始（本機）
@@ -102,7 +102,7 @@ web.py            FastAPI 主程式(單埠:UI + API + 健康檢查)
 agent.py          agent 核心:訊息組裝、多輪工具 loop
 llm.py            OpenAI 相容客戶端(流式 + tool calls 跨 chunk 合併)
 tools.py          搜尋 / 計算器 / 沙盒檔案
-db.py             libsql(Turso 或本機 SQLite)+ schema(含 providers / settings 表)
+db.py             Turso(HTTP API)或本機 SQLite(sqlite3)+ schema(含 providers / settings 表)
 static/index.html 前端(無框架、內嵌 CSS/JS)
 static/favicon.svg SVG 網站圖示(沿用主色漸層)
 Dockerfile / docker-compose.yml / .env.example / requirements.txt

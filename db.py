@@ -1,17 +1,126 @@
-"""資料庫層：libsql（Turso 遠端 或 本機 SQLite），兩種模式。
+"""資料庫層：Turso 遠端 或 本機 SQLite，兩種模式，都不需原生套件。
 
 環境變數：
-- DATABASE_URL + TURSO_AUTH_TOKEN → Turso 遠端
-- 否則 LIBSQL_PATH（預設 data/local.db）→ 本機 SQLite
+- DATABASE_URL + TURSO_AUTH_TOKEN → Turso 遠端（走 Turso HTTP API，用 httpx）
+- 否則 LIBSQL_PATH（預設 data/local.db）→ 本機 SQLite（Python 內建 sqlite3）
+
+不依賴 libsql 原生套件，因此 x86_64 / ARM64（含 Apple Silicon、樹莓派）皆可建置。
 """
 from __future__ import annotations
 
+import base64
 import os
+import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-import libsql
+import httpx
+
+
+class TursoError(RuntimeError):
+    pass
+
+
+def _to_arg(v):
+    if v is None:
+        return {"type": "null"}
+    if isinstance(v, bool):
+        return {"type": "integer", "value": str(int(v))}
+    if isinstance(v, int):
+        return {"type": "integer", "value": str(v)}
+    if isinstance(v, float):
+        return {"type": "float", "value": v}
+    if isinstance(v, (bytes, bytearray, memoryview)):
+        return {"type": "blob", "base64": base64.b64encode(bytes(v)).decode()}
+    return {"type": "text", "value": str(v)}
+
+
+def _from_val(c):
+    t = c.get("type")
+    if t == "null":
+        return None
+    if t == "integer":
+        return int(c["value"])
+    if t == "float":
+        return float(c["value"])
+    if t == "blob":
+        return base64.b64decode(c.get("base64", ""))
+    return c.get("value")
+
+
+class _TursoCursor:
+    def __init__(self, conn: "TursoConnection"):
+        self._conn = conn
+        self.description = None
+        self.rowcount = -1
+        self.lastrowid = None
+        self._rows: list[tuple] = []
+
+    def execute(self, sql, params=()):
+        res = self._conn._run(sql, params)
+        cols = res.get("cols") or []
+        self.description = [(c.get("name"),) + (None,) * 6 for c in cols] or None
+        self._rows = [tuple(_from_val(c) for c in row) for row in res.get("rows") or []]
+        self.rowcount = res.get("affected_row_count", -1)
+        rid = res.get("last_insert_rowid")
+        self.lastrowid = int(rid) if rid is not None else None
+        return self
+
+    def fetchall(self):
+        rows, self._rows = self._rows, []
+        return rows
+
+    def fetchone(self):
+        return self._rows.pop(0) if self._rows else None
+
+
+class TursoConnection:
+    """最小的 DB-API 相容連線：每條 SQL 一次 HTTP 請求（autocommit）。"""
+
+    def __init__(self, url: str, token: str, timeout: float = 30.0):
+        u = url.strip()
+        for pre in ("libsql://", "wss://", "ws://"):
+            if u.startswith(pre):
+                u = "https://" + u[len(pre):]
+        if u.startswith("http://") or u.startswith("https://"):
+            pass
+        else:
+            u = "https://" + u
+        self._endpoint = u.rstrip("/") + "/v2/pipeline"
+        self._client = httpx.Client(
+            timeout=timeout, headers={"Authorization": f"Bearer {token}"}
+        )
+
+    def _run(self, sql, params=()):
+        body = {
+            "requests": [
+                {"type": "execute", "stmt": {"sql": sql, "args": [_to_arg(p) for p in params]}},
+                {"type": "close"},
+            ]
+        }
+        try:
+            r = self._client.post(self._endpoint, json=body)
+        except httpx.HTTPError as e:
+            raise TursoError(f"Turso 連線失敗：{e}") from e
+        if r.status_code != 200:
+            raise TursoError(f"Turso HTTP {r.status_code}：{r.text[:300]}")
+        first = (r.json().get("results") or [{}])[0]
+        if first.get("type") == "error":
+            raise TursoError(f"Turso SQL 錯誤：{(first.get('error') or {}).get('message')}")
+        return (first.get("response") or {}).get("result") or {}
+
+    def cursor(self):
+        return _TursoCursor(self)
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
+
+    def close(self):
+        self._client.close()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
@@ -105,7 +214,7 @@ class DB:
             self.url = url
             if not token:
                 raise RuntimeError("設定 DATABASE_URL 時必須一併設定 TURSO_AUTH_TOKEN")
-            self._conn = libsql.connect(url, auth_token=token)
+            self._conn = TursoConnection(url, token)
             self.mode = "turso"
         else:
             path = os.environ.get("LIBSQL_PATH", "").strip() or os.path.join(
@@ -113,7 +222,7 @@ class DB:
             )
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
             self.url = path
-            self._conn = libsql.connect(path)
+            self._conn = sqlite3.connect(path, check_same_thread=False)
             self.mode = "local"
         self.init()
 
