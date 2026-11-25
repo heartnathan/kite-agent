@@ -1,0 +1,23 @@
+services:
+  agent:
+    build: .
+    image: kite-agent:latest
+    container_name: kite-agent
+    ports:
+      # 只開放這一個埠：翼龍面板「外網埠:容器埠」
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      HOST: 0.0.0.0
+      # ---- Turso（推薦）----
+      DATABASE_URL: ""
+      TURSO_AUTH_TOKEN: ""
+      # ---- 或本機 SQLite（留空 DATABASE_URL 即用此）----
+      # LIBSQL_PATH: /data/local.db
+      # ---- LLM ----
+      # 不需要 LLM 環境變數:啟動後在網頁左下角 🔌 設定供應商/模型(存在資料庫)
+      DATA_DIR: /data
+    volumes:
+      # 本機模式 / 沙盒檔案存在這
+      - ./data:/data
+    restart: unless-stopped

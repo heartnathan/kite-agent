@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.git/
+.venv/
+venv/
+data/
+.env
+*.log
+docs/
+fake_llm.py

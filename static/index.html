@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kite Agent</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="mask-icon" href="/favicon.svg" color="#4f7cff">
+<meta name="theme-color" content="#0b0e14">
+<style>
+:root {
+  --bg: #0b0e14;
+  --panel: #11151f;
+  --panel2: #161b28;
+  --border: #232a3b;
+  --text: #e6e9f0;
+  --muted: #8a93a8;
+  --accent: #4f7cff;
+  --accent2: #7c5cff;
+  --ok: #2fbf71;
+  --err: #ff5d5d;
+  --warn: #ffb020;
+  --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  background: var(--bg); color: var(--text);
+  display: flex; overflow: hidden;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2a3245; border-radius: 4px; }
+
+/* ---------- 側欄 ---------- */
+#sidebar {
+  width: 280px; min-width: 220px; background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+#brand {
+  padding: 16px 18px 12px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+#brand .logo {
+  width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  font-size: 18px;
+}
+#brand h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+#brand .sub { font-size: 11px; color: var(--muted); }
+#agentPicker {
+  margin: 12px 14px 4px; padding: 8px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--panel2);
+}
+#agentPicker label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 5px; }
+#agentSelect {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; font-size: 13px;
+}
+#agentInfo { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5;
+  min-height: 14px; }
+#sessionList { flex: 1; overflow-y: auto; padding: 8px; }
+.sess-item {
+  padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; gap: 8px; color: var(--muted);
+  border: 1px solid transparent;
+}
+.sess-item:hover { background: var(--panel2); color: var(--text); }
+.sess-item.active { background: var(--panel2); color: var(--text);
+  border-color: var(--border); }
+.sess-item .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-item .del { opacity: 0; font-size: 14px; }
+.sess-item:hover .del { opacity: .7; }
+#sidebarFoot { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.btn {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+  transition: .15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; font-weight: 600; }
+#statusDot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted);
+  align-self: center; }
+#statusDot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+#statusDot.bad { background: var(--err); }
+
+/* ---------- 主區 ---------- */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#chatHead {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; background: var(--panel);
+}
+#chatHead .title { font-size: 15px; font-weight: 600; flex: 1; }
+#chatHead .meta { font-size: 12px; color: var(--muted); }
+#messages { flex: 1; overflow-y: auto; padding: 24px 8%; }
+.msg { display: flex; gap: 12px; margin-bottom: 22px; animation: fadein .25s; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+.msg .avatar {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 16px;
+  background: var(--panel2); border: 1px solid var(--border);
+}
+.msg.user .avatar { background: linear-gradient(135deg, #2b6cb0, #2c5282); }
+.msg .bubble {
+  max-width: 82%; padding: 11px 15px; border-radius: 12px;
+  font-size: 14.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
+}
+.msg.user .bubble { background: var(--accent); color: #fff;
+  border-bottom-right-radius: 4px; }
+.msg.assistant .bubble { background: var(--panel2); border: 1px solid var(--border);
+  border-bottom-left-radius: 4px; }
+.msg.error .bubble { border-color: var(--err); color: var(--err); }
+.bubble code { font-family: var(--mono); font-size: 12.5px; background: rgba(255,255,255,.08);
+  padding: 1px 5px; border-radius: 4px; }
+.bubble pre { background: #0a0d13; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; overflow-x: auto; margin: 8px 0; font-size: 12.5px; }
+.bubble pre code { background: none; padding: 0; }
+.bubble a { color: #7aa2ff; }
+
+/* tool call 卡片 */
+.toolcard {
+  margin: 8px 0; border: 1px solid var(--border); border-radius: 10px;
+  background: #0d1119; font-size: 12.5px; overflow: hidden;
+}
+.toolcard .head {
+  padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+  background: var(--panel2); cursor: pointer; user-select: none;
+}
+.toolcard .head .ic { font-size: 14px; }
+.toolcard .head .name { font-family: var(--mono); color: #9fb4e8; font-weight: 600; }
+.toolcard .head .st { margin-left: auto; font-size: 11px; }
+.toolcard .st.run { color: var(--warn); }
+.toolcard .st.ok { color: var(--ok); }
+.toolcard .st.err { color: var(--err); }
+.toolcard .body { display: none; padding: 10px 12px; font-family: var(--mono);
+  font-size: 12px; color: var(--muted); white-space: pre-wrap; word-break: break-word;
+  max-height: 260px; overflow-y: auto; border-top: 1px solid var(--border); }
+.toolcard.open .body { display: block; }
+.toolcard .body b { color: var(--text); display: block; margin-bottom: 4px; }
+.toolcard .body .out { margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--border); }
+
+/* 打字中 */
+.typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+.typing i { width: 7px; height: 7px; background: var(--muted); border-radius: 50%;
+  animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s; }
+.typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+/* ---------- 輸入區 ---------- */
+#composer { padding: 14px 8% 18px; border-top: 1px solid var(--border);
+  background: var(--panel); }
+#composerBox {
+  display: flex; gap: 10px; align-items: flex-end;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+  padding: 10px 12px;
+}
+#composerBox:focus-within { border-color: var(--accent); }
+#input {
+  flex: 1; background: none; border: none; outline: none; color: var(--text);
+  font-size: 14.5px; font-family: inherit; resize: none; max-height: 160px;
+  line-height: 1.6;
+}
+#sendBtn {
+  width: 38px; height: 38px; border-radius: 10px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; font-size: 17px; flex-shrink: 0;
+}
+#sendBtn:disabled { opacity: .4; cursor: not-allowed; }
+#hint { text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+/* ---------- 歡迎 / 設定畫面 ---------- */
+#welcome { flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 30px; }
+#welcome .card { max-width: 560px; text-align: center; }
+#welcome .big { font-size: 54px; margin-bottom: 14px; }
+#welcome h2 { font-size: 22px; margin-bottom: 10px; }
+#welcome p { color: var(--muted); font-size: 14px; line-height: 1.8; margin-bottom: 18px; }
+#welcome .tips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.chip { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 7px 14px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--text); }
+.hidden { display: none !important; }
+
+/* modal */
+#modalBg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+  align-items: center; justify-content: center; z-index: 50; }
+#modalBg.show { display: flex; }
+#modal { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  width: min(520px, 92vw); max-height: 86vh; overflow-y: auto; padding: 22px; }
+#modal h3 { font-size: 16px; margin-bottom: 14px; }
+.field { margin-bottom: 12px; }
+.field label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+.field input, .field textarea, .field select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); padding: 8px 10px; font-size: 13.5px;
+  font-family: inherit;
+}
+.field textarea { min-height: 90px; resize: vertical; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+#modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.btn.sm { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+.btn.danger { border-color: var(--err); color: var(--err); background: transparent; }
+.hidden { display: none !important; }
+
+/* ---------- 模型/供應商設定面板 ---------- */
+#settingsBg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+  align-items: center; justify-content: center; z-index: 60; }
+#settingsBg.show { display: flex; }
+#settingsPanel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  width: min(660px, 94vw); max-height: 88vh; overflow-y: auto; padding: 20px 22px; }
+#settingsPanel .spHead { display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px; }
+#settingsPanel h3 { font-size: 16px; }
+.spSub { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+.spSec { border: 1px solid var(--border); border-radius: 10px; background: var(--panel2);
+  padding: 14px; margin-bottom: 12px; }
+.spSecHead { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px; }
+.spSecHead b { font-size: 13.5px; }
+.spHint { font-size: 11px; color: var(--muted); }
+.spBadge { font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--muted); }
+.spBadge.ok { color: var(--ok); border-color: var(--ok); }
+.spEmpty { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.spMsg { font-size: 12px; margin-top: 8px; min-height: 15px; line-height: 1.5; }
+.spMsg.ok { color: var(--ok); }
+.spMsg.err { color: var(--err); }
+.spMsg.warn { color: var(--warn); }
+
+.prov { border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px;
+  margin-bottom: 8px; background: var(--panel); }
+.prov.top { border-color: var(--accent); }
+.prov .l1 { display: flex; align-items: center; gap: 8px; }
+.prov .pname { font-size: 13.5px; font-weight: 600; }
+.prov .pbase { font-size: 11px; color: var(--muted); font-family: var(--mono);
+  margin-top: 2px; word-break: break-all; }
+.prov .star { margin-left: auto; font-size: 11px; color: var(--warn);
+  background: rgba(255,176,32,.12); border: 1px solid rgba(255,176,32,.4);
+  border-radius: 999px; padding: 2px 8px; }
+.prov .l2 { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.prov .l2 .btn { flex: 1; justify-content: center; display: flex; align-items: center; }
+.modelList { max-height: 220px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); }
+.modelItem { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  font-family: var(--mono); font-size: 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border); }
+.modelItem:last-child { border-bottom: none; }
+.modelItem:hover { background: var(--panel2); }
+.modelItem .pick { margin-left: auto; font-size: 11px; color: var(--accent);
+  opacity: 0; }
+.modelItem:hover .pick { opacity: 1; }
+.modelItem.isDefault { background: rgba(79,124,255,.1); }
+.modelItem.isDefault .pick { opacity: 1; color: var(--ok); }
+.modelItem mark { background: rgba(255,176,32,.3); color: inherit; border-radius: 3px; }
+
+@media (max-width: 760px) {
+  #sidebar { position: fixed; z-index: 40; height: 100%; transform: translateX(-100%);
+    transition: .2s; }
+  #sidebar.open { transform: none; }
+  #messages, #composer { padding-left: 5%; padding-right: 5%; }
+}
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div id="brand">
+    <div class="logo">🪁</div>
+    <div>
+      <h1>Kite Agent</h1>
+      <div class="sub">單埠 · Turso · 工具鏈</div>
+    </div>
+  </div>
+  <div id="agentPicker">
+    <label>AGENT</label>
+    <select id="agentSelect"></select>
+    <div id="agentInfo"></div>
+  </div>
+  <div id="sessionList"></div>
+  <div id="sidebarFoot">
+    <button class="btn primary" id="newChatBtn" style="flex:1">＋ 新對話</button>
+    <button class="btn" id="agentBtn" title="管理 Agents">🤖</button>
+    <button class="btn" id="settingsBtn" title="模型 / 供應商設定">🔌</button>
+    <div id="statusDot" title="連線狀態"></div>
+  </div>
+</aside>
+
+<main id="main">
+  <div id="chatHead">
+    <div class="title" id="chatTitle">新對話</div>
+    <div class="meta" id="chatMeta"></div>
+  </div>
+
+  <div id="messages" class="hidden"></div>
+
+  <div id="welcome">
+    <div class="card">
+      <div class="big">🪁</div>
+      <h2>Kite Agent</h2>
+      <p>對話、搜尋網路、算數、讀寫檔案 —— 全部在一個埠口完成。<br>
+      開始前請先建立新對話（或選擇左側歷史對話）。</p>
+      <div class="tips">
+        <div class="chip" data-q="搜尋一下今天台北的天氣">🌤 搜尋今天台北天氣</div>
+        <div class="chip" data-q="幫我算 (128 * 45 + 3600) / 8 等於幾">🧮 算個數學題</div>
+        <div class="chip" data-q="在檔案裡寫一份簡報大綱：AI 時代的個人生產力">📄 生成一份檔案</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="composer">
+    <div id="composerBox">
+      <textarea id="input" rows="1" placeholder="輸入訊息…（Enter 送出，Shift+Enter 換行）"></textarea>
+      <button id="sendBtn" title="送出">➤</button>
+    </div>
+    <div id="hint">Enter 送出 · Shift+Enter 換行 · Agent 工具執行結果可展開查看</div>
+  </div>
+</main>
+
+<div id="modalBg">
+  <div id="modal">
+    <h3 id="modalTitle">新增 Agent</h3>
+    <div class="field"><label>名稱 *</label><input id="fName" maxlength="64"></div>
+    <div class="field"><label>头像</label><input id="fAvatar" value="🤖" maxlength="8"></div>
+    <div class="field"><label>描述</label><input id="fDesc"></div>
+    <div class="field"><label>System Prompt</label><textarea id="fSys"></textarea></div>
+    <div class="row2">
+      <div class="field"><label>Temperature</label><input id="fTemp" type="number" step="0.1" min="0" max="2" value="0.7"></div>
+      <div class="field"><label>Max Tokens</label><input id="fTokens" type="number" min="1" value="2048"></div>
+      <div class="field"><label>工具輪數</label><input id="fIter" type="number" min="1" max="25" value="8"></div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="modalCancel">取消</button>
+      <button class="btn primary" id="modalSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="settingsBg">
+  <div id="settingsPanel">
+    <div class="spHead">
+      <h3>🔌 模型 / 供應商設定</h3>
+      <button class="btn" id="settingsClose">✕</button>
+    </div>
+    <p class="spSub">外接 API 全部在這裡設定（不使用環境變數）。可新增多個供應商（任何 OpenAI 相容端點），從其拉取模型並設為預設。</p>
+
+    <!-- 預設模型 -->
+    <section class="spSec">
+      <div class="spSecHead">
+        <b>預設模型</b>
+        <span id="defaultBadge" class="spBadge">未設定</span>
+      </div>
+      <div id="defaultBox" class="spEmpty">尚未設定。請先在下方新增供應商、拉取模型，再選一個設為預設。</div>
+    </section>
+
+    <!-- 供應商列表 -->
+    <section class="spSec">
+      <div class="spSecHead">
+        <b>供應商（<span id="provCount">0</span>）</b>
+        <button class="btn sm" id="addProvBtn">＋ 新增供應商</button>
+      </div>
+      <div id="provList"></div>
+    </section>
+
+    <!-- 供應商編輯 -->
+    <section class="spSec" id="provEditSec">
+      <div class="spSecHead">
+        <b id="provEditTitle">新增供應商</b>
+        <span class="spHint">相容 OpenAI Chat Completions 的端點（OpenAI / DeepSeek / Moonshot / SiliconFlow / Ollama / vLLM…）</span>
+      </div>
+      <div class="field"><label>名稱 *</label><input id="pName" placeholder="例如：OpenAI 官方" maxlength="64"></div>
+      <div class="field"><label>API 位址（base URL）*</label><input id="pBase" placeholder="https://api.openai.com/v1 或 http://ollama:11434/v1"></div>
+      <div class="field"><label>API Key</label><input id="pKey" type="password" placeholder="sk-…（本地 Ollama 等可留空）"></div>
+      <div class="row2">
+        <div class="field"><label>超時（秒）</label><input id="pTimeout" type="number" min="5" max="600" value="300"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="pCancel">取消</button>
+        <button class="btn" id="pTestBtn" title="用 1 token 的最小請求測試連線">🧪 測試連線</button>
+        <button class="btn primary" id="pSave">儲存供應商</button>
+      </div>
+      <div id="pMsg" class="spMsg"></div>
+
+      <!-- 拉取模型 -->
+      <div id="modelBox" class="hidden">
+        <div class="spSecHead" style="margin-top:6px">
+          <b id="modelBoxTitle">模型列表</b>
+          <button class="btn sm" id="modelRefresh">🔄 重新拉取</button>
+        </div>
+        <div class="field">
+          <input id="modelFilter" placeholder="🔍 輸入關鍵字篩選模型（例如 gpt、deepseek、7b…）">
+        </div>
+        <div id="modelStatus" class="spMsg"></div>
+        <div id="modelList" class="modelList"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const state = {
+  agents: [], currentAgentId: "builtin",
+  sessions: [], currentSessionId: null,
+  streaming: false, cfg: null,
+  providers: [], default: { provider_id: "", model: "" },
+  editingProviderId: null, provModels: [], modelProviderId: null,
+};
+
+/* ---------------- 工具函式 ---------------- */
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!r.ok) {
+    let msg;
+    try { msg = (await r.json()).detail || r.statusText; } catch { msg = r.statusText; }
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return r.json();
+}
+function esc(s) {
+  return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;",
+    ">": "&gt;", '"': "&quot;" }[c]));
+}
+/* 輕量 markdown：code block / inline code / 換行 */
+function md(s) {
+  let t = esc(s);
+  t = t.replace(/```(\w*)\n([\s\S]*?)```/g, (_, l, c) => `<pre><code>${c}</code></pre>`);
+  t = t.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  t = t.replace(/\n/g, "<br>");
+  return t;
+}
+function fmtBytes(n) {
+  if (!n && n !== 0) return "";
+  if (n < 1024) return n + " B";
+  return (n / 1024).toFixed(1) + " KB";
+}
+function autoScroll() {
+  const m = $("#messages");
+  m.scrollTop = m.scrollHeight;
+}
+function setBusy(b) {
+  state.streaming = b;
+  $("#sendBtn").disabled = b;
+  $("#sendBtn").textContent = b ? "⏸" : "➤";
+}
+
+/* ---------------- 載入狀態 ---------------- */
+async function loadHealth() {
+  try {
+    state.cfg = await api("/api/health");
+    $("#statusDot").className = state.cfg.llm_ready ? "ok" : "bad";
+    $("#statusDot").title = state.cfg.llm_ready
+      ? `LLM 就緒：${state.cfg.llm_model}`
+      : "尚未設定供應商/模型 — 點左下「🔌」開啟模型設定";
+    if (!state.cfg.llm_ready) {
+      $("#hint").innerHTML =
+        '⚠️ <b style="color:var(--warn)">尚未設定 LLM 供應商／模型</b> — ' +
+        '點左下角 <b>🔌</b> 開啟「模型設定」：新增供應商 → 拉取模型 → 設為預設';
+    }
+  } catch {
+    $("#statusDot").className = "bad";
+    $("#statusDot").title = "無法連線 API";
+  }
+}
+
+/* ---------------- 模型 / 供應商設定面板 ---------------- */
+$("#settingsBtn").onclick = () => openSettings();
+$("#settingsClose").onclick = () => closeSettings();
+$("#settingsBg").onclick = (e) => { if (e.target.id === "settingsBg") closeSettings(); };
+window.closeSettings = closeSettings;
+
+async function openSettings() {
+  $("#settingsBg").classList.add("show");
+  resetProvForm();
+  try { await loadProviders(); }
+  catch (e) { $("#provList").innerHTML = '<div class="spEmpty">載入失敗:' + esc(e.message) + "</div>"; }
+}
+function closeSettings() { $("#settingsBg").classList.remove("show"); }
+
+function provById(id) { return state.providers.find((p) => p.id === id); }
+function shortBase(u) { try { const x = new URL(u); return x.host + x.pathname; } catch { return u; } }
+
+async function loadProviders() {
+  const d = await api("/api/providers");
+  state.providers = d.providers || [];
+  state.default = d.default || { provider_id: "", model: "" };
+  renderProviders();
+  renderDefaultBox();
+}
+
+/* ---------- 預設模型 ---------- */
+function renderDefaultBox() {
+  const box = $("#defaultBox"), badge = $("#defaultBadge");
+  const p = provById(state.default.provider_id);
+  if (!state.providers.length) {
+    badge.textContent = "未設定"; badge.className = "spBadge";
+    box.innerHTML = "尚未設定。請先在下方<b>新增供應商</b>、<b>拉取模型</b>,再回這裡設預設。";
+    return;
+  }
+  if (!p || !state.default.model) {
+    badge.textContent = "未設定"; badge.className = "spBadge";
+    box.innerHTML = p
+      ? "已選供應商,還<b>未選模型</b>。點下方該供應商的「📥 拉取模型」挑一個。"
+      : "尚未設定。請先在下方<b>新增供應商</b>、<b>拉取模型</b>,再回這裡設預設。";
+    return;
+  }
+  badge.textContent = `預設:${p.name} / ${state.default.model}`;
+  badge.className = "spBadge ok";
+  box.innerHTML = `
+    <div class="row2">
+      <div class="field"><label>供應商</label><select id="defProv"></select></div>
+      <div class="field"><label>模型</label><input id="defModel" list="defModelList" value="${esc(state.default.model)}"></div>
+    </div>
+    <datalist id="defModelList"></datalist>
+    <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="defSave">✓ 儲存預設</button></div>`;
+  const sel = $("#defProv");
+  sel.innerHTML = state.providers.map((pp) =>
+    `<option value="${pp.id}" ${pp.id === state.default.provider_id ? "selected" : ""}>${esc(pp.name)}(${esc(shortBase(pp.base_url))})</option>`
+  ).join("");
+  const cache = (window.__modelCache && window.__modelCache[p.id]) || [];
+  $("#defModelList").innerHTML = cache.map((m) => `<option value="${esc(m)}">`).join("");
+  $("#defSave").onclick = async () => {
+    const mid = sel.value, mname = $("#defModel").value.trim();
+    if (!mname) { alert("請填模型名稱"); return; }
+    try {
+      state.default = await api("/api/default", {
+        method: "PUT",
+        body: JSON.stringify({ provider_id: mid, model: mname }),
+      });
+      renderDefaultBox(); renderProviders(); loadHealth();
+    } catch (e) { alert("儲存失敗:" + e.message); }
+  };
+}
+
+/* ---------- 供應商列表 ---------- */
+function renderProviders() {
+  $("#provCount").textContent = state.providers.length;
+  const list = $("#provList");
+  if (!state.providers.length) {
+    list.innerHTML = '<div class="spEmpty">尚無供應商。點右上「+ 新增供應商」開始設定(任何 OpenAI 相容 API 皆可)。</div>';
+    return;
+  }
+  list.innerHTML = state.providers.map((p) => {
+    const isDef = state.default.provider_id === p.id && state.default.model;
+    return `<div class="prov ${isDef ? "top" : ""}">
+      <div class="l1">
+        <div style="flex:1;min-width:0">
+          <div class="pname">${esc(p.name)}${p.api_key ? ' <span title="已設金鑰">🔑</span>' : ' <span style="color:var(--muted)" title="無金鑰(如本地 Ollama)">(無金鑰)</span>'}</div>
+          <div class="pbase">${esc(p.base_url)}</div>
+        </div>
+        ${isDef ? '<span class="star">★ 預設</span>' : ""}
+      </div>
+      <div class="l2">
+        <button class="btn sm" data-act="models" data-id="${p.id}">📥 拉取模型</button>
+        <button class="btn sm" data-act="edit" data-id="${p.id}">✏️ 編輯</button>
+        <button class="btn sm danger" data-act="del" data-id="${p.id}">🗑 刪除</button>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("button[data-act]").forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.id, act = b.dataset.act;
+      if (act === "del") {
+        if (!confirm("刪除此供應商?(若為預設,預設將被清除)")) return;
+        try {
+          await api(`/api/providers/${id}`, { method: "DELETE" });
+          await loadProviders(); loadHealth();
+        } catch (e) { alert("刪除失敗:" + e.message); }
+      } else if (act === "edit") {
+        fillProvForm(id);
+      } else if (act === "models") {
+        showModelBox(id);
+      }
+    };
+  });
+}
+
+/* ---------- 供應商表單 ---------- */
+$("#addProvBtn").onclick = () => {
+  resetProvForm();
+  $("#provEditSec").classList.remove("hidden");
+  $("#pName").focus();
+};
+$("#pCancel").onclick = () => { resetProvForm(); $("#provEditSec").classList.add("hidden"); };
+
+function resetProvForm() {
+  state.editingProviderId = null;
+  state.modelProviderId = null;
+  state.provModels = [];
+  $("#provEditTitle").textContent = "新增供應商";
+  ["pName", "pBase", "pKey"].forEach((i) => { $("#" + i).value = ""; });
+  $("#pTimeout").value = 300;
+  setPMsg("");
+  $("#modelBox").classList.add("hidden");
+  $("#modelList").innerHTML = "";
+  $("#modelFilter").value = "";
+}
+function fillProvForm(id) {
+  const p = provById(id);
+  if (!p) return;
+  state.editingProviderId = id;
+  $("#provEditTitle").textContent = `編輯供應商:${p.name}`;
+  $("#pName").value = p.name;
+  $("#pBase").value = p.base_url;
+  $("#pKey").value = p.api_key || "";
+  $("#pTimeout").value = p.timeout || 300;
+  setPMsg("");
+  $("#modelBox").classList.add("hidden");
+  $("#provEditSec").classList.remove("hidden");
+  $("#provEditSec").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function setPMsg(text, cls) {
+  const el = $("#pMsg");
+  el.textContent = text || "";
+  el.className = "spMsg" + (cls ? " " + cls : "");
+}
+function currentProvBody() {
+  return {
+    name: $("#pName").value.trim(),
+    base_url: $("#pBase").value.trim(),
+    api_key: $("#pKey").value.trim(),
+    timeout: parseFloat($("#pTimeout").value) || 300,
+  };
+}
+
+$("#pSave").onclick = async () => {
+  const body = currentProvBody();
+  if (!body.name || !body.base_url) { setPMsg("名稱與 API 位址必填", "err"); return; }
+  try {
+    if (state.editingProviderId) {
+      await api(`/api/providers/${state.editingProviderId}`, { method: "PATCH", body: JSON.stringify(body) });
+      setPMsg("已儲存 ✓", "ok");
+    } else {
+      await api("/api/providers", { method: "POST", body: JSON.stringify(body) });
+      setPMsg("已新增 ✓", "ok");
+    }
+    await loadProviders(); loadHealth();
+    if (state.editingProviderId) resetProvForm();
+  } catch (e) { setPMsg(e.message, "err"); }
+};
+
+$("#pTestBtn").onclick = async () => {
+  const body = currentProvBody();
+  if (!body.base_url) { setPMsg("先填 API 位址再測試", "err"); return; }
+  setPMsg("⏳ 測試中…", "warn");
+  try {
+    let id = state.editingProviderId;
+    if (!id) {
+      const r = await api("/api/providers", {
+        method: "POST", body: JSON.stringify({ ...body, name: body.name || "新供應商" }),
+      });
+      id = r.provider.id;
+      await loadProviders();
+    } else {
+      await api(`/api/providers/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+    }
+    const r = await api(`/api/providers/${id}/test`, { method: "POST" });
+    setPMsg(r.ok
+      ? `✓ 連線成功(使用${r.picked ? r.picked : "模型"}:${r.model || "?"})`
+      : `⚠ ${r.detail}`, r.ok ? "ok" : "warn");
+  } catch (e) { setPMsg("✗ " + e.message, "err"); }
+};
+
+/* ---------- 拉取模型 + 篩選 + 設預設 ---------- */
+function showModelBox(id) {
+  state.modelProviderId = id;
+  const p = provById(id);
+  if (!p) return;
+  $("#provEditSec").classList.remove("hidden");
+  $("#modelBox").classList.remove("hidden");
+  $("#modelFilter").value = "";
+  $("#modelBoxTitle").textContent = "模型列表 — 拉取中…";
+  $("#modelList").innerHTML = '<div class="spEmpty">拉取中…</div>';
+  $("#modelBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  fetchModels(id);
+}
+async function fetchModels(id) {
+  const status = $("#modelStatus");
+  status.textContent = "⏳ 拉取模型中…"; status.className = "spMsg";
+  try {
+    const r = await api(`/api/providers/${id}/models`, { method: "POST" });
+    state.provModels = r.models || [];
+    (window.__modelCache = window.__modelCache || {})[id] = state.provModels;
+    status.textContent = `✓ 取得 ${r.count} 個模型`;
+    status.className = "spMsg ok";
+    renderModels(); renderDefaultBox();
+  } catch (e) {
+    status.textContent = "✗ " + e.message; status.className = "spMsg err";
+    $("#modelList").innerHTML = '<div class="spEmpty">(拉取失敗)</div>';
+    state.provModels = [];
+  }
+}
+$("#modelRefresh").onclick = () => { if (state.modelProviderId) fetchModels(state.modelProviderId); };
+$("#modelFilter").oninput = () => renderModels();
+
+function renderModels() {
+  const list = $("#modelList");
+  const p = provById(state.modelProviderId);
+  const filter = $("#modelFilter").value.trim().toLowerCase();
+  const all = state.provModels || [];
+  const shown = filter ? all.filter((m) => m.toLowerCase().includes(filter)) : all;
+  $("#modelBoxTitle").textContent = p
+    ? (filter ? `模型列表 — ${p.name}(${shown.length} / ${all.length} 個符合「${filter}」)`
+              : `模型列表 — ${p.name}(共 ${all.length} 個)`)
+    : "模型列表";
+  if (!shown.length) {
+    list.innerHTML = '<div class="spEmpty">' + (all.length ? "沒有符合的模型" : "此端點未回傳模型") + "</div>";
+    return;
+  }
+  const re = filter ? new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi") : null;
+  list.innerHTML = shown.map((m) => {
+    const isDef = state.default.provider_id === state.modelProviderId && state.default.model === m;
+    const label = re ? esc(m).replace(re, "<mark>$1</mark>") : esc(m);
+    return `<div class="modelItem ${isDef ? "isDefault" : ""}" data-m="${esc(m)}">
+      <span>${isDef ? "★ " : ""}${label}</span>
+      <span class="pick">${isDef ? "目前預設" : "設為預設"}</span>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".modelItem").forEach((el) => {
+    el.onclick = async () => {
+      try {
+        state.default = await api("/api/default", {
+          method: "PUT",
+          body: JSON.stringify({ provider_id: state.modelProviderId, model: el.dataset.m }),
+        });
+        renderModels(); renderDefaultBox(); renderProviders(); loadHealth();
+      } catch (e) { alert(e.message); }
+    };
+  });
+}
+
+/* ---------------- Agents ---------------- */
+async function loadAgents() {
+  const d = await api("/api/agents");
+  state.agents = d.agents;
+  const sel = $("#agentSelect");
+  sel.innerHTML = "";
+  for (const a of state.agents) {
+    const o = document.createElement("option");
+    o.value = a.id;
+    o.textContent = `${a.avatar} ${a.name}`;
+    sel.appendChild(o);
+  }
+  if (!state.agents.find((a) => a.id === state.currentAgentId)) {
+    state.currentAgentId = state.agents[0]?.id;
+  }
+  sel.value = state.currentAgentId;
+  const cur = state.agents.find((a) => a.id === state.currentAgentId);
+  $("#agentInfo").textContent = cur?.description || "";
+  await loadSessions();
+}
+$("#agentSelect").addEventListener("change", (e) => {
+  state.currentAgentId = e.target.value;
+  const cur = state.agents.find((a) => a.id === state.currentAgentId);
+  $("#agentInfo").textContent = cur?.description || "";
+  loadSessions();
+});
+
+/* ---------------- Sessions ---------------- */
+async function loadSessions() {
+  const d = await api(`/api/sessions?agent_id=${state.currentAgentId}`);
+  state.sessions = d.sessions;
+  const box = $("#sessionList");
+  box.innerHTML = "";
+  if (!state.sessions.length) {
+    box.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px;text-align:center">尚無對話</div>';
+    return;
+  }
+  for (const s of state.sessions) {
+    const div = document.createElement("div");
+    div.className = "sess-item" + (s.id === state.currentSessionId ? " active" : "");
+    div.innerHTML = `<span>${esc(s.agent_avatar || "💬")}</span>
+      <span class="t">${esc(s.title || "未命名")}</span>
+      <span class="del" title="刪除">×</span>`;
+    div.onclick = (e) => {
+      if (e.target.classList.contains("del")) {
+        if (confirm(`刪除對話「${s.title || "未命名"}」？`)) {
+          api(`/api/sessions/${s.id}`, { method: "DELETE" }).then(() => {
+            if (state.currentSessionId === s.id) showWelcome();
+            loadSessions();
+          });
+        }
+        return;
+      }
+      openSession(s.id);
+    };
+    box.appendChild(div);
+  }
+}
+function newSession() {
+  state.currentSessionId = null;
+  showWelcome();
+  loadSessions();
+  $("#input").focus();
+}
+async function openSession(id) {
+  state.currentSessionId = id;
+  const s = state.sessions.find((x) => x.id === id) || {};
+  $("#chatTitle").textContent = s.title || "對話";
+  $("#chatMeta").textContent = `model: ${state.cfg?.llm_model || "?"} · db: ${state.cfg?.db_mode || "?"}`;
+  showMessages();
+  const d = await api(`/api/sessions/${id}/messages`);
+  const box = $("#messages");
+  box.innerHTML = "";
+  for (const m of d.messages) box.appendChild(renderMsg(m));
+  autoScroll();
+  loadSessions();
+  $("#input").focus();
+}
+
+/* ---------------- 訊息渲染 ---------------- */
+function showWelcome() {
+  $("#welcome").classList.remove("hidden");
+  $("#messages").classList.add("hidden");
+  $("#chatTitle").textContent = "新對話";
+  $("#chatMeta").textContent = "";
+}
+function showMessages() {
+  $("#welcome").classList.add("hidden");
+  $("#messages").classList.remove("hidden");
+}
+function renderMsg(m) {
+  const div = document.createElement("div");
+  const isUser = m.role === "user";
+  const isErr = m.status === "error";
+  div.className = `msg ${isUser ? "user" : "assistant"}${isErr ? " error" : ""}`;
+  const agent = state.agents.find((a) => a.id === state.currentAgentId);
+  const avatar = isUser ? "🧑" : (agent?.avatar || "🤖");
+  let toolHtml = "";
+  if (m.tool_name) {
+    toolHtml = toolCard(m);
+  }
+  div.innerHTML = `
+    <div class="avatar">${avatar}</div>
+    <div class="bubble">
+      ${m.content ? md(m.content) : ""}
+      ${toolHtml}
+    </div>`;
+  bindToolCard(div);
+  return div;
+}
+function toolCard(m) {
+  const out = m.tool_output;
+  const st = out ? "ok" : "run";
+  return `<div class="toolcard" data-id="${m.id}">
+    <div class="head">
+      <span class="ic">🔧</span>
+      <span class="name">${esc(m.tool_name)}</span>
+      <span class="st ${st}">${st === "run" ? "執行中…" : "完成"}</span>
+    </div>
+    <div class="body">
+      <b>參數</b>${esc(JSON.stringify(m.tool_input ?? {}, null, 2))}
+      <div class="out" ${out ? "" : 'style="display:none"'}>
+        <b>結果</b>${esc(out || "")}
+      </div>
+    </div>
+  </div>`;
+}
+function bindToolCard(root) {
+  root.querySelectorAll(".toolcard .head").forEach((h) => {
+    h.onclick = () => h.parentElement.classList.toggle("open");
+  });
+}
+function findToolCard(id) {
+  return $(`.toolcard[data-id="${id}"]`);
+}
+
+/* ---------------- 傳送 + SSE ---------------- */
+async function send() {
+  const input = $("#input");
+  const text = input.value.trim();
+  if (!text || state.streaming) return;
+  input.value = "";
+  input.style.height = "auto";
+  setBusy(true);
+
+  if (!state.currentSessionId) {
+    // 直接用 agent 建立（session 由 API 建立後從 stream_end 拿到）
+  }
+  // 準備 UI：先顯示使用者訊息
+  const box = $("#messages");
+  if (box.classList.contains("hidden")) showMessages();
+  const um = renderMsg({ role: "user", content: text, id: "tmp_u" });
+  box.appendChild(um);
+  autoScroll();
+
+  // assistant 佔位
+  const adiv = document.createElement("div");
+  adiv.className = "msg assistant";
+  const agent = state.agents.find((a) => a.id === state.currentAgentId);
+  adiv.innerHTML = `<div class="avatar">${agent?.avatar || "🤖"}</div>
+    <div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>`;
+  box.appendChild(adiv);
+  autoScroll();
+  const abubble = adiv.querySelector(".bubble");
+  let acc = "";
+  let hadError = false;
+
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent_id: state.currentAgentId,
+        session_id: state.currentSessionId,
+        message: text,
+      }),
+    });
+    if (!resp.ok) {
+      let msg;
+      try { msg = (await resp.json()).detail; } catch { msg = resp.statusText; }
+      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const line = raw.trim();
+        if (!line.startsWith("data:")) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        handleEvent(ev, abubble, (t) => { acc += t; }, adiv);
+      }
+    }
+  } catch (e) {
+    hadError = true;
+    abubble.innerHTML = `<span style="color:var(--err)">⚠️ ${esc(e.message)}</span>`;
+  } finally {
+    setBusy(false);
+    // 換新 assistant 訊息容器（整理 tool cards）
+    if (hadError || acc === "" && !adiv.querySelector(".toolcard")) {
+      adiv.remove();
+    } else {
+      abubble.querySelectorAll(".typing").forEach((t) => t.remove());
+    }
+    loadSessions().then(() => {
+      if (state.currentSessionId) {
+        const s = state.sessions.find((x) => x.id === state.currentSessionId);
+        if (s) $("#chatTitle").textContent = s.title || "對話";
+      }
+    });
+    autoScroll();
+  }
+}
+
+function handleEvent(ev, abubble, appendText, adiv) {
+  switch (ev.type) {
+    case "message_saved":
+      break;
+    case "delta": {
+      let textDiv = abubble.querySelector(".text");
+      if (!textDiv) {
+        abubble.querySelector(".typing")?.remove();
+        textDiv = document.createElement("div");
+        textDiv.className = "text";
+        abubble.prepend(textDiv);
+      }
+      appendText(ev.content);
+      textDiv.innerHTML = md(acc);
+      autoScroll();
+      break;
+    }
+    case "tool_call": {
+      const typing = abubble.querySelector(".typing");
+      if (typing && acc === "") typing.remove();
+      const div = document.createElement("div");
+      div.innerHTML = toolCard({ id: ev.id, tool_name: ev.name, tool_input: ev.arguments });
+      abubble.appendChild(div.firstElementChild);
+      bindToolCard(div);
+      autoScroll();
+      break;
+    }
+    case "tool_result": {
+      const card = findToolCard(ev.id);
+      if (card) {
+        const st = card.querySelector(".st");
+        st.className = "st ok";
+        st.textContent = "完成";
+        const out = card.querySelector(".out");
+        out.style.display = "";
+        out.innerHTML = `<b>結果</b>${esc(ev.output)}`;
+      }
+      autoScroll();
+      break;
+    }
+    case "done":
+      break;
+    case "error": {
+      const typing = abubble.querySelector(".typing");
+      if (typing) typing.remove();
+      const d = document.createElement("div");
+      d.style.color = "var(--err)";
+      d.style.marginTop = "8px";
+      d.textContent = "⚠️ " + ev.error;
+      abubble.appendChild(d);
+      break;
+    }
+    case "stream_end":
+      if (ev.session_id && !state.currentSessionId) {
+        state.currentSessionId = ev.session_id;
+      }
+      break;
+  }
+}
+
+/* ---------------- Agent 管理 modal ---------------- */
+let editingId = null;
+function openAgentModal(id = null) {
+  editingId = id;
+  const a = id ? state.agents.find((x) => x.id === id) : null;
+  $("#modalTitle").textContent = a ? `編輯 ${a.name}` : "新增 Agent";
+  $("#fName").value = a?.name || "";
+  $("#fAvatar").value = a?.avatar || "🤖";
+  $("#fDesc").value = a?.description || "";
+  $("#fSys").value = a?.system_prompt || "";
+  $("#fTemp").value = a?.temperature ?? 0.7;
+  $("#fTokens").value = a?.max_tokens ?? 2048;
+  $("#fIter").value = a?.max_iterations ?? 8;
+  $("#modalBg").classList.add("show");
+  if (a) $("#fName").disabled = a.is_builtin; // 內建可編輯 prompt 等
+}
+async function saveAgent() {
+  const body = {
+    name: $("#fName").value.trim(),
+    avatar: $("#fAvatar").value.trim() || "🤖",
+    description: $("#fDesc").value.trim(),
+    system_prompt: $("#fSys").value,
+    temperature: parseFloat($("#fTemp").value) || 0.7,
+    max_tokens: parseInt($("#fTokens").value) || 2048,
+    max_iterations: parseInt($("#fIter").value) || 8,
+  };
+  if (!body.name) return alert("名稱不能為空");
+  try {
+    if (editingId) {
+      await api(`/api/agents/${editingId}`, { method: "PATCH", body: JSON.stringify(body) });
+    } else {
+      await api("/api/agents", { method: "POST", body: JSON.stringify(body) });
+    }
+    $("#modalBg").classList.remove("show");
+    loadAgents();
+  } catch (e) { alert("儲存失敗：" + e.message); }
+}
+$("#modalCancel").onclick = () => $("#modalBg").classList.remove("show");
+$("#modalSave").onclick = saveAgent;
+$("#modalBg").onclick = (e) => { if (e.target.id === "modalBg") $("#modalBg").classList.remove("show"); };
+$("#agentBtn").onclick = (e) => {
+  e.stopPropagation();
+  if (confirm("建立新 Agent？\n（確定=新增，再點可選編輯）\n\n直接按『新增』吧！")) {
+    openAgentModal();
+  }
+};
+
+/* ---------------- 輸入區 ---------------- */
+const input = $("#input");
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+$("#sendBtn").onclick = send;
+$("#newChatBtn").onclick = newSession;
+document.querySelectorAll(".chip").forEach((c) => {
+  c.onclick = () => {
+    input.value = c.dataset.q;
+    send();
+  };
+});
+
+/* ---------------- Esc 關閉彈窗 ---------------- */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if ($("#settingsBg").classList.contains("show")) { closeSettings(); return; }
+  if ($("#modalBg").classList.contains("show")) $("#modalBg").classList.remove("show");
+});
+
+/* ---------------- 啟動 ---------------- */
+(async function init() {
+  await loadHealth();
+  await loadAgents();
+  setInterval(loadHealth, 30000);
+  input.focus();
+})();
+</script>
+</body>
+</html>

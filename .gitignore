@@ -1,0 +1,29 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- 執行時資料(本地 sqlite / agent 沙盒 / 上傳下載)----
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- 環境變數(含金鑰,切勿提交)----
+.env
+.env.*
+!.env.example
+
+# ---- 編輯器 / 系統 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- 測試 / 日誌 ----
+*.log
+.pytest_cache/
+.coverage
