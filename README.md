@@ -2,8 +2,6 @@
 
 > 原名「翼鸢 Agent」。英文名 **Kite**(鸢),GitHub 倉庫:`heartnathan/kite-agent`。
 
-一個完整的 AI agent web app:**單埠**部署,適合放在翼龍面板(1Panel)的容器環境。
-
 一個完整的 AI agent web app：**單埠**部署，適合放在翼龍面板（1Panel）的容器環境。
 
 同一個埠口同時提供：
